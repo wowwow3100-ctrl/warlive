@@ -185,7 +185,7 @@ with col_right:
 
     # 第三層：熱點圖示 (伊朗主戰場)
     hotspots = [
-        {"lon": 51.38, "lat": 35.68, "icon": "💥", "loc": "伊朗 (德黑蘭)", "msg": "革命衛隊指揮中心警戒"},
+        {"lon": 51.38, "lat": 35.68, "icon": "💥", "loc": "伊朗 (德 শতকরা倫)", "msg": "革命衛隊指揮中心警戒"},
         {"lon": 51.66, "lat": 32.65, "icon": "🚀", "loc": "伊朗 (伊斯法罕)", "msg": "核設施/飛彈基地防空啟動"},
         {"lon": 34.78, "lat": 32.08, "icon": "🛡️", "loc": "以色列 (特拉維夫)", "msg": "鐵穹系統全面攔截準備"},
         {"lon": 43.00, "lat": 13.00, "icon": "🚢", "loc": "紅海海域", "msg": "美軍航母戰鬥群部署"}
@@ -229,22 +229,22 @@ with col_right:
 
 st.markdown("---")
 
-# --- 4. 底部 Live 影像區塊 (支援自訂網址) ---
-st.subheader("🎥 戰區 24H 現場監視畫面")
-st.info("💡 提示：YouTube 常會阻擋新聞台的外部播放。若顯示「無法播放」，請直接在下方欄位貼上新的 YouTube 影片網址即可切換。")
+# --- 4. 底部 Live 影像區塊 (無阻擋 Twitch 串流) ---
+st.subheader("🎥 戰區 24H 現場監視畫面 (Twitch 穩定串流)")
+st.info("💡 提示：除了 YouTube，系統也支援 **Twitch** 實況台、**Vimeo** 或直連的 **.mp4** 網址。Twitch 通常不會阻擋外部網頁嵌入，強烈建議作為戰情室的主要訊號源！")
 
 vid_col1, vid_col2 = st.columns(2)
 
 with vid_col1:
-    st.markdown("##### 📍 中東/伊朗 戰情觀測頻道")
-    # 提供預設的 DW News 網址，並允許使用者自由輸入更換
-    custom_url_1 = st.text_input("更換頻道 1 網址：", value="https://www.youtube.com/watch?v=1EIKEJiX-k4", key="vid1")
+    st.markdown("##### 📍 國際突發新聞戰情台 (Agenda-Free TV)")
+    # 使用知名的 Twitch OSINT/突發新聞分析台
+    custom_url_1 = st.text_input("更換頻道 1 網址：", value="https://www.twitch.tv/agenda_free_tv", key="vid1")
     if custom_url_1:
         st.video(custom_url_1)
 
 with vid_col2:
-    st.markdown("##### 📍 印太/台海 戰情觀測頻道")
-    # 提供預設的半島電視台網址，並允許使用者自由輸入更換
-    custom_url_2 = st.text_input("更換頻道 2 網址：", value="https://www.youtube.com/watch?v=bByGQxsKWps", key="vid2")
+    st.markdown("##### 📍 全球即時新聞聯播網 (LiveNowGlobal)")
+    # 使用 Twitch 全球新聞實況台
+    custom_url_2 = st.text_input("更換頻道 2 網址：", value="https://www.twitch.tv/livenowglobal", key="vid2")
     if custom_url_2:
         st.video(custom_url_2)
