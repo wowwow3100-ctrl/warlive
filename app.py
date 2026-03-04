@@ -72,6 +72,19 @@ st.markdown("""
         margin-top: -10px;
         margin-bottom: 10px;
     }
+    /* HP 血條樣式 */
+    .hp-bar-container {
+        width: 100%;
+        background-color: #30363d;
+        border-radius: 8px;
+        height: 20px;
+        margin-top: 5px;
+        overflow: hidden;
+    }
+    .hp-bar-fill {
+        height: 100%;
+        transition: width 0.5s ease-in-out;
+    }
     @keyframes blinker {
         50% { opacity: 0; }
     }
@@ -99,13 +112,11 @@ def translate_to_tw(text):
 
 @st.cache_data(ttl=60)
 def fetch_real_news():
-    # 改為抓取純國外權威媒體的英文 RSS 戰報
     urls = [
         ("半島電視台 (Al Jazeera)", "https://www.aljazeera.com/xml/rss/all.xml"),
         ("BBC 國際新聞 (BBC World)", "http://feeds.bbci.co.uk/news/world/rss.xml")
     ]
     news_list = []
-    
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -116,14 +127,12 @@ def fetch_real_news():
             response = urllib.request.urlopen(req, context=ctx, timeout=5)
             root = ET.fromstring(response.read())
             
-            for item in root.findall('.//item')[:4]: # 每個外媒抓取最新 4 條
+            for item in root.findall('.//item')[:4]:
                 title_en = item.find('title').text
                 pub_date = item.find('pubDate').text
                 
                 link_node = item.find('link')
                 news_link = link_node.text if link_node is not None else "#"
-                
-                # 呼叫翻譯函數，將英文標題轉為繁體中文
                 title_tw = translate_to_tw(title_en)
 
                 try:
@@ -135,12 +144,9 @@ def fetch_real_news():
                     time_str = pub_date
                     
                 news_list.append({
-                    "time": time_str, 
-                    "src": src_name, 
-                    "msg_tw": title_tw, 
-                    "msg_en": title_en,
-                    "link": news_link,
-                    "dt": dt_tw
+                    "time": time_str, "src": src_name, 
+                    "msg_tw": title_tw, "msg_en": title_en,
+                    "link": news_link, "dt": dt_tw
                 })
         except Exception as e:
             continue
@@ -150,9 +156,45 @@ def fetch_real_news():
 
 real_events = fetch_real_news()
 
-# 根據新聞內容，動態計算台海緊張程度 (檢查中英文關鍵字)
-taiwan_tension_score = sum(1 for ev in real_events if "台灣" in ev['msg_tw'] or "中國" in ev['msg_tw'] or "Taiwan" in ev['msg_en'] or "China" in ev['msg_en'])
+# --- 動態情報分析 (台海警戒、伊朗HP、地圖連動點) ---
+taiwan_tension_score = 0
+iran_damage = 0
+dynamic_map_hotspots = []
+
+for ev in real_events:
+    msg = ev['msg_tw']
+    en_msg = ev['msg_en']
+    
+    # 判斷台海熱度
+    if any(k in msg for k in ["台灣", "中國"]) or any(k in en_msg for k in ["Taiwan", "China"]):
+        taiwan_tension_score += 1
+        dynamic_map_hotspots.append({"lon": 119.5 + random.uniform(-1.5, 1.5), "lat": 23.5 + random.uniform(-1.5, 1.5), "icon": "🚨", "loc": "🔴 即時新聞連動：台海熱區", "msg": msg})
+    
+    # 判斷伊朗受損/警戒熱度 (計算扣血量)
+    if any(k in msg for k in ["伊朗", "德黑蘭", "Iran", "Tehran"]):
+        # 出現負面/戰爭字眼加重扣血
+        if any(k in msg for k in ["攻擊", "爆炸", "飛彈", "制裁", "警告", "死", "attack", "strike", "missile"]):
+            iran_damage += 800
+        else:
+            iran_damage += 200
+        dynamic_map_hotspots.append({"lon": 53.68 + random.uniform(-3, 3), "lat": 32.42 + random.uniform(-3, 3), "icon": "💥", "loc": "🔴 即時新聞連動：伊朗突發", "msg": msg})
+
+    # 判斷以色列/中東
+    elif any(k in msg for k in ["以色列", "加薩", "黎巴嫩", "Israel", "Gaza", "Lebanon"]):
+        dynamic_map_hotspots.append({"lon": 34.78 + random.uniform(-1, 1), "lat": 31.5 + random.uniform(-1, 1), "icon": "🚀", "loc": "🔴 即時新聞連動：以色列周邊", "msg": msg})
+        
+    # 判斷俄烏
+    elif any(k in msg for k in ["烏克蘭", "俄羅斯", "基輔", "Ukraine", "Russia"]):
+        dynamic_map_hotspots.append({"lon": 34.0 + random.uniform(-4, 4), "lat": 49.0 + random.uniform(-3, 3), "icon": "💥", "loc": "🔴 即時新聞連動：俄烏戰區", "msg": msg})
+
 taiwan_is_hot = taiwan_tension_score > 0
+
+# 計算伊朗 HP
+iran_max_hp = 10000
+# 基礎消耗 + 新聞扣血 + 隨機微小浮動
+iran_current_hp = max(0, iran_max_hp - 1500 - iran_damage - random.randint(10, 150))
+hp_percentage = (iran_current_hp / iran_max_hp) * 100
+hp_color = "#2ea043" if hp_percentage > 60 else ("#d29922" if hp_percentage > 30 else "#f85149")
 
 # --- 3. 國家衝突熱度資料庫 ---
 country_data = {
@@ -164,47 +206,50 @@ country_data = {
 df_countries = pd.DataFrame(country_data)
 
 # --- 4. 核心版面規劃：左邊事件，右邊聚焦地圖 ---
-col_left, col_right = st.columns([1.4, 2.6])
+col_left, col_right = st.columns([1.5, 2.5])
 
-# 【左側版面】：實時戰報與歷史回顧
+# 【左側版面】：實時戰報與各項指數
 with col_left:
     st.subheader("📰 真實國際戰報 (外電即時翻譯)") 
     
-    with st.container(height=450, border=True):
+    with st.container(height=400, border=True):
         if not real_events:
             st.warning("目前無法連線至外電情報伺服器。")
         else:
             for ev in real_events:
-                # 建立可點擊的中文超連結
                 msg_with_link = f"[{ev['msg_tw']}]({ev['link']})"
-                
-                # 排版：時間 + 來源 + 翻譯標籤 -> 中文超連結 -> 英文原文
                 content = f"📅 **{ev['time']}** | 📡 {ev['src']} `[🤖 翻譯]`\n\n{msg_with_link}\n\n<div class='original-text'>原文: {ev['msg_en']}</div>"
                 
-                # 簡單以來源顏色區分
                 if "半島" in ev['src']:
                     st.warning(content, icon="🟠")
                 else:
                     st.info(content, icon="🔵")
     
     st.markdown("---")
-    st.subheader("📜 過去 30 天重大戰情回顧")
-    with st.container(height=250, border=True):
-        history_data = [
-            {"date": "2026-03-01", "loc": "伊朗/以色列", "desc": "伊朗革命衛隊宣布進入最高戰備狀態，多處地下飛彈基地啟動。"},
-            {"date": "2026-02-24", "loc": "紅海海域", "desc": "胡塞武裝發射反艦彈道飛彈，美英聯軍實施聯合防空攔截。"},
-            {"date": "2026-02-18", "loc": "台海周邊", "desc": "中共解放軍進行海空聯合戰備警巡，數十架次軍機越過海峽中線。"},
-            {"date": "2026-02-10", "loc": "烏克蘭", "desc": "俄烏戰爭屆滿四週年，雙方於烏東防線爆發新一波激烈砲擊。"}
-        ]
-        for h in history_data:
-            st.markdown(f"""
-            <div class="history-card">
-                <span style="color:#ff7b72; font-weight:bold;">{h['date']} | 📍 {h['loc']}</span><br>
-                {h['desc']}
-            </div>
-            """, unsafe_allow_html=True)
+    
+    # 新增功能：戰略物資與恐慌指數
+    st.subheader("📈 全球恐慌與戰略物資指數")
+    i1, i2, i3 = st.columns(3)
+    with i1: 
+        st.metric("VIX 恐慌指數", f"{22.5 + random.uniform(-0.5, 1.8):.2f}", f"+{random.uniform(0.1, 1.5):.2f}%", delta_color="inverse")
+    with i2: 
+        st.metric("布蘭特原油 (桶)", f"${88.4 + random.uniform(-0.5, 1.2):.2f}", f"+{random.uniform(0.1, 0.8):.2f}%")
+    with i3: 
+        st.metric("黃金 (盎司)", f"${2150.5 + random.uniform(-5, 15):.1f}", f"+{random.uniform(2.0, 8.0):.1f}")
+        
+    st.markdown("---")
 
-# 【右側版面】：動態戰情地圖 (聚焦伊朗)
+    # 新增功能：伊朗政權/國力 HP 生命值
+    st.subheader("🛡️ 伊朗國防/政權 穩定值 (HP)")
+    st.markdown(f"**當前數值: {iran_current_hp} / {iran_max_hp}** ({hp_percentage:.1f}%)")
+    st.markdown(f"""
+        <div class="hp-bar-container">
+            <div class="hp-bar-fill" style="width: {hp_percentage}%; background-color: {hp_color};"></div>
+        </div>
+        <span style="font-size:12px; color:#8b949e;">*依據即時新聞負面關鍵字(攻擊、爆炸、制裁)動態扣減</span>
+    """, unsafe_allow_html=True)
+
+# 【右側版面】：動態戰情地圖 (連動左側新聞)
 with col_right:
     fig = go.Figure()
 
@@ -219,25 +264,29 @@ with col_right:
         marker_line_width=0.5
     ))
 
-    hotspots = [
-        {"lon": 51.38, "lat": 35.68, "icon": "💥", "loc": "伊朗 (德黑蘭)", "msg": "革命衛隊指揮中心警戒"},
-        {"lon": 51.66, "lat": 32.65, "icon": "🚀", "loc": "伊朗 (伊斯法罕)", "msg": "核設施/飛彈基地防空啟動"},
+    # 基礎熱點
+    base_hotspots = [
+        {"lon": 51.38, "lat": 35.68, "icon": "🎯", "loc": "伊朗 (德黑蘭)", "msg": "高價值戰略目標區"},
         {"lon": 34.78, "lat": 32.08, "icon": "🛡️", "loc": "以色列 (特拉維夫)", "msg": "鐵穹系統全面攔截準備"},
-        {"lon": 43.00, "lat": 13.00, "icon": "🚢", "loc": "紅海海域", "msg": "美軍航母戰鬥群部署"}
+        {"lon": 43.00, "lat": 13.00, "icon": "🚢", "loc": "紅海海域", "msg": "美軍航母戰鬥群常態部署"}
     ]
     
-    if taiwan_is_hot:
-        hotspots.append({"lon": 119.5, "lat": 23.5, "icon": "🚨", "loc": "台灣海峽", "msg": "偵測到異常活動：解放軍越界/演習新聞暴增"})
+    # 將基礎熱點與「新聞動態觸發」的熱點合併
+    all_hotspots = base_hotspots + dynamic_map_hotspots
 
-    lats = [h["lat"] for h in hotspots]
-    lons = [h["lon"] for h in hotspots]
-    icons = [h["icon"] for h in hotspots]
-    hover_texts = [f"<b>{h['loc']}</b><br>⚠️ {h['msg']}" for h in hotspots]
+    lats = [h["lat"] for h in all_hotspots]
+    lons = [h["lon"] for h in all_hotspots]
+    icons = [h["icon"] for h in all_hotspots]
+    hover_texts = [f"<b>{h['loc']}</b><br>⚠️ {h['msg']}" for h in all_hotspots]
+
+    # 利用秒數做動態縮放動畫
+    is_pulse = (now.second % 10) < 5 
+    sizes = [38 if (h["icon"] in ["💥", "🚨", "🚀"] and is_pulse) else 26 for h in all_hotspots]
 
     fig.add_trace(go.Scattergeo(
         lon=lons, lat=lats,
         text=icons, mode='text',
-        textfont=dict(size=30),
+        textfont=dict(size=sizes),
         hoverinfo='text', hovertext=hover_texts
     ))
 
@@ -269,8 +318,9 @@ st.info("💡 系統已切換至無阻擋的 Ganjing World 串流源，若有其
 v_col1, v_col2 = st.columns(2)
 
 with v_col1:
-    st.markdown("##### 📍 全球戰情觀測頻道 1")
-    url1 = st.text_input("更換頻道 1 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid1")
+    st.markdown("##### 📍 核心戰情觀測頻道 1")
+    # 將網址轉換為正確的 embed 格式以確保 iframe 可以播放
+    url1 = st.text_input("更換頻道 1 (Embed 網址)：", value="https://www.ganjingworld.com/embed/oZkE9Q1V1N", key="vid1")
     if url1:
         components.html(
             f'<iframe width="100%" height="280" src="{url1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
@@ -278,7 +328,7 @@ with v_col1:
         )
 
 with v_col2:
-    st.markdown("##### 📍 全球戰情觀測頻道 2")
+    st.markdown("##### 📍 輔助戰情觀測頻道 2")
     url2 = st.text_input("更換頻道 2 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid2")
     if url2:
         components.html(
