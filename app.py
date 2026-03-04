@@ -9,6 +9,9 @@ import xml.etree.ElementTree as ET
 import ssl
 from email.utils import parsedate_to_datetime
 
+# 💡 補上最重要的元件庫，解決 NameError 當機問題！
+import streamlit.components.v1 as components 
+
 # --- 1. 頁面與全域設定 ---
 st.set_page_config(
     page_title="全球戰情即時監控面板",
@@ -138,7 +141,7 @@ country_data = {
 }
 df_countries = pd.DataFrame(country_data)
 
-# --- 4. 核心版面規劃：左邊滾動事件，右邊聚焦地圖 ---
+# --- 4. 核心版面規劃：左邊事件，右邊聚焦地圖 ---
 col_left, col_right = st.columns([1.3, 2.7])
 
 # 【左側版面】：實時戰報與歷史回顧
@@ -150,7 +153,7 @@ with col_left:
             st.warning("目前無法連線至情報伺服器。")
         else:
             for ev in real_events:
-                # 新增：將文字轉化為 Markdown 超連結格式 [標題](網址)
+                # 這裡已經轉化為 Markdown 超連結格式 [標題](網址)
                 msg_with_link = f"[{ev['msg']}]({ev['link']})"
                 
                 content = f"📅 **{ev['time']}** | 📡 {ev['src']}\n\n**{msg_with_link}**"
@@ -237,35 +240,29 @@ with col_right:
 
 st.markdown("---")
 
-# --- 4. 底部 Live 影像區塊 (四種嵌入技術測試) ---
-st.subheader("🎥 戰區 24H 現場監視畫面 (多訊號源語法測試區)")
-st.info("💡 阿吉幫你準備了 4 種不同的影像嵌入底層技術，請確認一下「第幾個」畫面有成功出現（就算要按播放鍵也沒關係），確認後跟我說，我們就把壞掉的刪掉！")
+# --- 4. 底部 Live 影像區塊 ---
+st.subheader("🎥 戰區 24H 現場監視畫面")
+st.info("💡 若畫面顯示無法播放，代表該新聞台目前『阻擋外部網頁』。請在下方欄位自由更換為其他頻道的 YouTube 嵌入網址！")
 
 v_col1, v_col2 = st.columns(2)
-v_col3, v_col4 = st.columns(2)
 
 with v_col1:
-    st.markdown("##### 測試 1. 純 HTML Iframe (NASA)")
-    st.caption("使用最底層的 HTML 標籤強制嵌入。")
-    components.html(
-        """<iframe width="100%" height="250" src="https://www.youtube.com/embed/xRPjKQtRXR8?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
-        height=260
-    )
+    st.markdown("##### 📍 中東/全球 觀測頻道")
+    # 預設：半島電視台 24H 官方直播頻道 ID 嵌入格式
+    url1 = st.text_input("更換頻道 1 (YouTube Embed 網址)：", value="https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqGLPEZ4yYcgZ1Gg", key="vid1")
+    if url1:
+        # 使用最底層 HTML Iframe，加上 autoplay 與靜音 (靜音是瀏覽器允許自動播放的關鍵)
+        components.html(
+            f'<iframe width="100%" height="280" src="{url1}&autoplay=1&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+            height=290
+        )
 
 with v_col2:
-    st.markdown("##### 測試 2. Streamlit 原生 Iframe (TVBS)")
-    st.caption("呼叫 Streamlit 內建的 components.iframe 函數。")
-    components.iframe("https://www.youtube.com/embed/2mCSYvcfhtc?autoplay=1&mute=1", height=250)
-
-with v_col3:
-    st.markdown("##### 測試 3. Streamlit 原生 st.video (半島台)")
-    st.caption("也就是上次失敗的方法，當作對照組。")
-    st.video("https://www.youtube.com/watch?v=bByGQxsKWps")
-
-with v_col4:
-    st.markdown("##### 測試 4. Twitch 官方語法 (Agenda-Free TV)")
-    st.caption("針對 Twitch 設計的專屬網域解除限制語法。")
-    components.html(
-        """<iframe src="https://player.twitch.tv/?channel=agenda_free_tv&parent=share.streamlit.io&parent=localhost&muted=true" frameborder="0" allowfullscreen="true" scrolling="no" height="250" width="100%"></iframe>""",
-        height=260
-    )
+    st.markdown("##### 📍 歐美 觀測頻道")
+    # 預設：德國之聲 (DW News) 24H 官方直播頻道 ID 嵌入格式
+    url2 = st.text_input("更換頻道 2 (YouTube Embed 網址)：", value="https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg", key="vid2")
+    if url2:
+        components.html(
+            f'<iframe width="100%" height="280" src="{url2}&autoplay=1&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+            height=290
+        )
