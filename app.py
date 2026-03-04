@@ -241,28 +241,28 @@ with col_right:
 st.markdown("---")
 
 # --- 4. 底部 Live 影像區塊 ---
-st.subheader("🎥 戰區 24H 現場監視畫面")
-st.info("💡 若畫面顯示無法播放，代表該新聞台目前『阻擋外部網頁』。請在下方欄位自由更換為其他頻道的 YouTube 嵌入網址！")
+st.subheader("🎥 戰區 24H 現場監視畫面 (Ganjing World 串流)")
+st.info("💡 系統已切換至無阻擋的 Ganjing World 串流源，若有其他頻道的來源，請貼入下方欄位！")
 
 v_col1, v_col2 = st.columns(2)
 
 with v_col1:
-    st.markdown("##### 📍 中東/全球 觀測頻道")
-    # 預設：半島電視台 24H 官方直播頻道 ID 嵌入格式
-    url1 = st.text_input("更換頻道 1 (YouTube Embed 網址)：", value="https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqGLPEZ4yYcgZ1Gg", key="vid1")
+    st.markdown("##### 📍 全球戰情觀測頻道 1")
+    # 預設使用你提供的 Ganjing World 連結
+    url1 = st.text_input("更換頻道 1 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid1")
     if url1:
-        # 使用最底層 HTML Iframe，加上 autoplay 與靜音 (靜音是瀏覽器允許自動播放的關鍵)
+        # 調整 iframe 參數以完全契合 Ganjing World
         components.html(
-            f'<iframe width="100%" height="280" src="{url1}&autoplay=1&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+            f'<iframe width="100%" height="280" src="{url1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
             height=290
         )
 
 with v_col2:
-    st.markdown("##### 📍 歐美 觀測頻道")
-    # 預設：德國之聲 (DW News) 24H 官方直播頻道 ID 嵌入格式
-    url2 = st.text_input("更換頻道 2 (YouTube Embed 網址)：", value="https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg", key="vid2")
+    st.markdown("##### 📍 全球戰情觀測頻道 2")
+    # 同樣預設為 Ganjing World 來源，可以自行手動尋找並替換第二個網址
+    url2 = st.text_input("更換頻道 2 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid2")
     if url2:
         components.html(
-            f'<iframe width="100%" height="280" src="{url2}&autoplay=1&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+            f'<iframe width="100%" height="280" src="{url2}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
             height=290
         )
