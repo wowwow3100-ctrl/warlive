@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 
 # --- 1. 頁面與全域設定 ---
@@ -13,8 +13,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 取得現在時間
-now = datetime.now()
+# 建立台灣時區 (UTC+8)
+tz_tw = timezone(timedelta(hours=8))
+
+# 取得現在的台灣時間
+now = datetime.now(tz_tw)
 current_datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
 # 利用當下時間的「秒數」來做動態切換 (模擬動畫效果)
@@ -42,14 +45,6 @@ st.markdown("""
         font-weight: bold;
         animation: blinker 1s linear infinite;
     }
-    .translate-tag {
-        background-color: #1f6feb;
-        color: white;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 12px;
-        margin-left: 8px;
-    }
     @keyframes blinker {
         50% { opacity: 0; }
     }
@@ -57,7 +52,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🔴 全球戰情即時監控面板 (OSINT Dashboard)")
-st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 系統時間: {current_datetime_str} (每 5 秒自動更新)", unsafe_allow_html=True)
+st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 台灣時間: {current_datetime_str} (每 5 秒自動更新)", unsafe_allow_html=True)
 st.markdown("---")
 
 # --- 2. 準備動態事件資料 (加入獨立時間、來源) ---
@@ -118,10 +113,9 @@ with col_left:
     # 根據資料動態生成戰報卡片
     for ev in events:
         time_str = ev["time"].strftime("%Y-%m-%d %H:%M:%S")
-        content = f"""
-        📅 **{time_str}** | 📡 來源: {ev['src']} <span class='translate-tag'>🤖 即時翻譯</span><br>
-        **{ev['loc_tw']}:** {ev['msg']}
-        """
+        # 改用純 Markdown 語法呈現翻譯標籤，解決 HTML 標籤外露的問題
+        content = f"""📅 **{time_str}** | 📡 來源: {ev['src']} `{['🤖 即時翻譯']}`\n\n**{ev['loc_tw']}:** {ev['msg']}"""
+        
         if ev["type"] == "error":
             st.error(content, icon="🔴")
         elif ev["type"] == "warning":
@@ -213,15 +207,17 @@ st.subheader("🎥 戰區 24H 現場監視畫面")
 vid_col1, vid_col2 = st.columns(2)
 
 with vid_col1:
-    st.markdown("##### 📍 中東戰區 (半島電視台)")
+    st.markdown("##### 📍 中東戰區 (半島電視台 Al Jazeera)")
+    # 使用穩定的 Al Jazeera English 直播 Video ID (bByGQxsKWps) 代替容易被擋的 Channel ID
     components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqGLPEZ4yYcgZ1Gg&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
+        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/bByGQxsKWps?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
         height=290
     )
 
 with vid_col2:
-    st.markdown("##### 📍 歐洲戰區 (天空新聞)")
+    st.markdown("##### 📍 歐洲戰區 (天空新聞 Sky News)")
+    # 使用穩定的 Sky News 直播 Video ID (9Auq9mYxFEE) 代替容易被擋的 Channel ID
     components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGr4S4A&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
+        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
         height=290
     )
