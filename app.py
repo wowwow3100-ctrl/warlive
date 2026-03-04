@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import streamlit.components.v1 as components
 from datetime import datetime, timedelta, timezone
 import random
+import urllib.request
+import xml.etree.ElementTree as ET
+import ssl
+from email.utils import parsedate_to_datetime
 
 # --- 1. 頁面與全域設定 ---
 st.set_page_config(
@@ -15,12 +18,10 @@ st.set_page_config(
 
 # 建立台灣時區 (UTC+8)
 tz_tw = timezone(timedelta(hours=8))
-
-# 取得現在的台灣時間
 now = datetime.now(tz_tw)
 current_datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
-# 利用當下時間的「秒數」來做動態切換 (模擬動畫效果)
+# 利用秒數做動態切換 (模擬動畫效果)
 is_pulse = (now.second % 10) < 5 
 
 # 隱藏預設選單，強制暗黑風格，並加入「每 5 秒自動刷新」的 Meta 標籤
@@ -52,47 +53,62 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🔴 全球戰情即時監控面板 (OSINT Dashboard)")
-st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 台灣時間: {current_datetime_str} (每 5 秒自動更新)", unsafe_allow_html=True)
+st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 台灣時間: {current_datetime_str} (每 5 秒更新畫面，新聞每分鐘同步)", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- 2. 準備動態事件資料 (加入獨立時間、來源) ---
-events = [
-    {
-        "loc_en": "Ukraine", "loc_tw": "烏克蘭",
-        "time": now - timedelta(minutes=2, seconds=random.randint(10, 50)),
-        "src": "路透社 (Reuters)", "type": "error", "icon": "💥",
-        "lat": 48.0, "lon": 37.5,
-        "msg": "烏東防線發生劇烈爆炸，偵測到高強度火砲訊號。"
-    },
-    {
-        "loc_en": "Israel", "loc_tw": "以色列 (耶路撒冷)",
-        "time": now - timedelta(minutes=14, seconds=random.randint(10, 50)),
-        "src": "半島電視台 (Al Jazeera)", "type": "warning", "icon": "💥",
-        "lat": 31.5, "lon": 34.5,
-        "msg": "防空警報大響，啟動鐵穹系統攔截多枚火箭彈。"
-    },
-    {
-        "loc_en": "Pacific", "loc_tw": "太平洋海域",
-        "time": now - timedelta(minutes=45, seconds=random.randint(10, 50)),
-        "src": "美國海軍學會新聞 (USNI)", "type": "info", "icon": "🚢",
-        "lat": 23.5, "lon": 119.5,
-        "msg": "衛星追蹤到航母打擊群變更航向，進入警戒狀態。"
-    },
-    {
-        "loc_en": "Sudan", "loc_tw": "蘇丹",
-        "time": now - timedelta(hours=1, minutes=12),
-        "src": "法新社 (AFP)", "type": "error", "icon": "✈️",
-        "lat": 15.6, "lon": 32.5,
-        "msg": "首都圈通訊再次全面中斷，疑似發生大規模空襲。"
-    },
-    {
-        "loc_en": "Red Sea", "loc_tw": "紅海海域",
-        "time": now - timedelta(minutes=8),
-        "src": "英國海事貿易行動辦公室 (UKMTO)", "type": "warning", "icon": "🚀",
-        "lat": 13.0, "lon": 43.0,
-        "msg": "偵測到不明無人機群正在接近商船航道。"
-    }
-]
+# --- 2. 實時抓取真實全球新聞 (RSS Feed) ---
+@st.cache_data(ttl=60) # 每 60 秒重新去抓一次真實新聞
+def fetch_real_news():
+    urls = [
+        ("BBC World", "http://feeds.bbci.co.uk/news/world/rss.xml"),
+        ("半島電視台", "https://www.aljazeera.com/xml/rss/all.xml")
+    ]
+    news_list = []
+    
+    # 忽略 SSL 憑證驗證，避免雲端環境報錯
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    for src_name, url in urls:
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            response = urllib.request.urlopen(req, context=ctx, timeout=5)
+            root = ET.fromstring(response.read())
+            
+            for item in root.findall('.//item')[:4]: # 每個來源取最新的4條
+                title = item.find('title').text
+                pub_date = item.find('pubDate').text
+                
+                # 將新聞時間轉換為台灣時間
+                try:
+                    dt = parsedate_to_datetime(pub_date)
+                    dt_tw = dt.astimezone(tz_tw)
+                    time_str = dt_tw.strftime("%Y-%m-%d %H:%M:%S")
+                except:
+                    dt_tw = datetime.now(tz_tw)
+                    time_str = pub_date
+                    
+                news_list.append({
+                    "time": time_str, 
+                    "src": src_name, 
+                    "msg": title, 
+                    "dt": dt_tw
+                })
+        except Exception as e:
+            continue
+            
+    # 依照時間排序，確保最新新聞在最上面
+    news_list.sort(key=lambda x: x.get('dt', datetime.now(tz_tw)), reverse=True)
+    
+    # 如果網路不通，提供備用情報
+    if not news_list:
+        return [{"time": current_datetime_str, "src": "系統回報", "msg": "目前無法連線至國際新聞伺服器，啟動離線監控模式。"}]
+        
+    return news_list[:6] # 只回傳最新的 6 條新聞
+
+# 取得真實新聞資料
+real_events = fetch_real_news()
 
 # 國家衝突熱度 (底圖顏色)
 country_data = {
@@ -108,24 +124,21 @@ col_left, col_right = st.columns([1.5, 2.5])
 
 # 【左側版面】：實時戰報與風險指數
 with col_left:
-    st.subheader("📰 實時滾動戰報")
+    st.subheader("📰 真實國際滾動戰報")
     
-    # 根據資料動態生成戰報卡片
-    for ev in events:
-        time_str = ev["time"].strftime("%Y-%m-%d %H:%M:%S")
-        # 改用純 Markdown 語法呈現翻譯標籤，解決 HTML 標籤外露的問題
-        content = f"""📅 **{time_str}** | 📡 來源: {ev['src']} `{['🤖 即時翻譯']}`\n\n**{ev['loc_tw']}:** {ev['msg']}"""
-        
-        if ev["type"] == "error":
+    # 動態渲染剛剛抓回來的真實新聞
+    for ev in real_events:
+        content = f"""📅 **{ev['time']}** | 📡 來源: {ev['src']} `{['🤖 自動抓取']}`\n\n**頭條:** {ev['msg']}"""
+        # 用不同顏色區分來源
+        if "BBC" in ev['src']:
             st.error(content, icon="🔴")
-        elif ev["type"] == "warning":
+        elif "半島" in ev['src']:
             st.warning(content, icon="🟠")
         else:
             st.info(content, icon="🔵")
     
     st.markdown("---")
     st.subheader("⚠️ 國家不穩定風險")
-    # 模擬數值隨機微幅跳動
     st.metric(label="🇮🇷 伊朗風險指數", value=f"{85 + random.randint(-1, 2)} / 100", delta="升級中", delta_color="inverse")
     st.metric(label="🇺🇦 烏克蘭風險指數", value=f"{98 + random.randint(-1, 1)} / 100", delta="極高", delta_color="inverse")
 
@@ -133,7 +146,7 @@ with col_left:
 with col_right:
     fig = go.Figure()
 
-    # 第一層：國家區域上色 (中文名稱)
+    # 第一層：國家區域上色
     fig.add_trace(go.Choropleth(
         locations=df_countries['ISO'],
         z=df_countries['Intensity'],
@@ -145,15 +158,13 @@ with col_right:
         marker_line_width=0.5
     ))
 
-    # 第二層：【攻打動畫軌跡】模擬飛彈/攻擊路線
-    # 俄羅斯(邊境) 往 烏克蘭東部 的攻擊線
+    # 第二層：攻打動畫軌跡
     fig.add_trace(go.Scattergeo(
         lon=[40.0, 37.5], lat=[50.0, 48.0],
         mode='lines',
         line=dict(width=3, color='orange', dash='dot' if is_pulse else 'solid'),
         hoverinfo='skip'
     ))
-    # 葉門 往 紅海 的無人機軌跡
     fig.add_trace(go.Scattergeo(
         lon=[44.0, 43.0], lat=[15.0, 13.0],
         mode='lines',
@@ -161,19 +172,19 @@ with col_right:
         hoverinfo='skip'
     ))
 
-    # 第三層：部隊與戰火圖示打點 (動態大小與中文 Hover)
-    lats = [e["lat"] for e in events]
-    lons = [e["lon"] for e in events]
-    icons = [e["icon"] for e in events]
-    
-    # 滑鼠移過去顯示的文字 (結合時間、來源與中文訊息)
-    hover_texts = [
-        f"<b>{e['loc_tw']}</b><br>🕒 {e['time'].strftime('%H:%M:%S')}<br>📡 {e['src']}<br>⚠️ {e['msg']}" 
-        for e in events
+    # 第三層：熱點圖示 (結合閃爍特效)
+    hotspots = [
+        {"lon": 37.5, "lat": 48.0, "icon": "💥", "loc": "烏克蘭東部", "msg": "持續交火區域"},
+        {"lon": 34.5, "lat": 31.5, "icon": "💥", "loc": "中東地區", "msg": "防空警戒熱區"},
+        {"lon": 43.0, "lat": 13.0, "icon": "🚀", "loc": "紅海海域", "msg": "無人機攻擊熱區"},
+        {"lon": 119.5, "lat": 23.5, "icon": "🚢", "loc": "太平洋艦隊", "msg": "常態巡航佈署"}
     ]
     
-    # 讓爆炸圖示隨時間變換大小 (產生脈衝閃爍感)
-    sizes = [38 if (e["icon"] == "💥" and is_pulse) else 26 for e in events]
+    lats = [h["lat"] for h in hotspots]
+    lons = [h["lon"] for h in hotspots]
+    icons = [h["icon"] for h in hotspots]
+    hover_texts = [f"<b>{h['loc']}</b><br>⚠️ {h['msg']}" for h in hotspots]
+    sizes = [38 if (h["icon"] == "💥" and is_pulse) else 26 for h in hotspots]
 
     fig.add_trace(go.Scattergeo(
         lon=lons, lat=lats,
@@ -203,21 +214,15 @@ with col_right:
 st.markdown("---")
 
 # --- 4. 底部 Live 影像區塊 ---
-st.subheader("🎥 戰區 24H 現場監視畫面")
+st.subheader("🎥 戰區 24H 現場監視畫面 (自動連線)")
 vid_col1, vid_col2 = st.columns(2)
 
 with vid_col1:
-    st.markdown("##### 🛰️ 全球軌道衛星監視 (NASA ISS Live)")
-    # 替換為 NASA 國際太空站 (ISS) 即時影像，極度穩定且不阻擋嵌入
-    components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UC15cwkGgHofE0A3R42c_lYg&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
-        height=290
-    )
+    st.markdown("##### 📍 國際新聞戰情中心 (DW News Live)")
+    # 改用 Streamlit 原生影片元件，並使用極穩定的 DW 德國之聲直播網址
+    st.video("https://www.youtube.com/watch?v=V9KZGs1MtP4")
 
 with vid_col2:
-    st.markdown("##### 📍 國際新聞戰情中心 (France 24)")
-    # 替換為 France 24 英文頻道，通常不會阻擋外部網頁嵌入
-    components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UCvwNhmfR1cqO3mB107I9Aig&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
-        height=290
-    )
+    st.markdown("##### 🛰️ 全球軌道衛星監視 (NASA ISS Live)")
+    # 改用 Streamlit 原生影片元件，使用 NASA 官方直播網址
+    st.video("https://www.youtube.com/watch?v=xRPjKQtRXR8")
