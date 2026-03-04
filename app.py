@@ -207,17 +207,17 @@ st.subheader("🎥 戰區 24H 現場監視畫面")
 vid_col1, vid_col2 = st.columns(2)
 
 with vid_col1:
-    st.markdown("##### 📍 中東戰區 (半島電視台 Al Jazeera)")
-    # 使用穩定的 Al Jazeera English 直播 Video ID (bByGQxsKWps) 代替容易被擋的 Channel ID
+    st.markdown("##### 🛰️ 全球軌道衛星監視 (NASA ISS Live)")
+    # 替換為 NASA 國際太空站 (ISS) 即時影像，極度穩定且不阻擋嵌入
     components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/bByGQxsKWps?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
+        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UC15cwkGgHofE0A3R42c_lYg&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
         height=290
     )
 
 with vid_col2:
-    st.markdown("##### 📍 歐洲戰區 (天空新聞 Sky News)")
-    # 使用穩定的 Sky News 直播 Video ID (9Auq9mYxFEE) 代替容易被擋的 Channel ID
+    st.markdown("##### 📍 國際新聞戰情中心 (France 24)")
+    # 替換為 France 24 英文頻道，通常不會阻擋外部網頁嵌入
     components.html(
-        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
+        """<iframe width="100%" height="280" src="https://www.youtube.com/embed/live_stream?channel=UCvwNhmfR1cqO3mB107I9Aig&autoplay=1&mute=1" frameborder="0" allowfullscreen></iframe>""",
         height=290
     )
