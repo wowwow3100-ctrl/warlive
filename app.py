@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import ssl
 from email.utils import parsedate_to_datetime
 import json
+import re # 新增：用於正規表達式抓取網頁中的影片 ID
 
 # 💡 匯入必要的元件庫
 import streamlit.components.v1 as components 
@@ -311,16 +312,55 @@ with col_right:
 
 st.markdown("---")
 
-# --- 4. 底部 Live 影像區塊 ---
-st.subheader("🎥 戰區 24H 現場監視畫面 (Ganjing World 串流)")
-st.info("💡 系統已切換至無阻擋的 Ganjing World 串流源，若有其他頻道的來源，請貼入下方欄位！")
+
+# --- 5. 動態擷取 Ganjing World 直播影片 ---
+@st.cache_data(ttl=300) # 每 5 分鐘自動抓取一次新影片
+def fetch_ganjing_live_urls():
+    # 預設影片 (作為備案)
+    default_urls = [
+        "https://www.ganjingworld.com/embed/oZkE9Q1V1N", 
+        "https://www.ganjingworld.com/embed/SH048456380000"
+    ]
+    try:
+        url = "https://www.ganjingworld.com/livetv"
+        # 偽裝成瀏覽器去抓取 HTML
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        response = urllib.request.urlopen(req, context=ctx, timeout=5)
+        html = response.read().decode('utf-8')
+        
+        # 利用正規表達式捕捉所有 /live/ 或 /video/ 後面的影片代碼
+        ids = re.findall(r'/(?:live|video|embed|s)/([a-zA-Z0-9_-]{10,20})', html)
+        
+        # 移除重複的 ID
+        unique_ids = []
+        for vid in ids:
+            if vid not in unique_ids:
+                unique_ids.append(vid)
+                
+        if len(unique_ids) >= 2:
+            return [f"https://www.ganjingworld.com/embed/{unique_ids[0]}", f"https://www.ganjingworld.com/embed/{unique_ids[1]}"]
+        elif len(unique_ids) == 1:
+            return [f"https://www.ganjingworld.com/embed/{unique_ids[0]}", default_urls[1]]
+        else:
+            return default_urls
+    except Exception as e:
+        return default_urls
+
+# 取得最新的動態影片網址
+live_urls = fetch_ganjing_live_urls()
+
+# --- 底部 Live 影像區塊 ---
+st.subheader("🎥 戰區 24H 現場監視畫面 (Ganjing World 動態抓取)")
+st.info("💡 系統已自動從 Ganjing World 直播專區爬取最新的直播連結。你也可以隨時手動更改下方網址！")
 
 v_col1, v_col2 = st.columns(2)
 
 with v_col1:
-    st.markdown("##### 📍 核心戰情觀測頻道 1")
-    # 將網址轉換為正確的 embed 格式以確保 iframe 可以播放
-    url1 = st.text_input("更換頻道 1 (Embed 網址)：", value="https://www.ganjingworld.com/embed/oZkE9Q1V1N", key="vid1")
+    st.markdown("##### 📍 動態觀測頻道 1")
+    url1 = st.text_input("頻道 1 (Embed 網址)：", value=live_urls[0], key="vid1")
     if url1:
         components.html(
             f'<iframe width="100%" height="280" src="{url1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
@@ -328,8 +368,8 @@ with v_col1:
         )
 
 with v_col2:
-    st.markdown("##### 📍 輔助戰情觀測頻道 2")
-    url2 = st.text_input("更換頻道 2 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid2")
+    st.markdown("##### 📍 動態觀測頻道 2")
+    url2 = st.text_input("頻道 2 (Embed 網址)：", value=live_urls[1], key="vid2")
     if url2:
         components.html(
             f'<iframe width="100%" height="280" src="{url2}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
