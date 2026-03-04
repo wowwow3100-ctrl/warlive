@@ -8,13 +8,14 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import ssl
 from email.utils import parsedate_to_datetime
+import json
 
-# 💡 補上最重要的元件庫，解決 NameError 當機問題！
+# 💡 匯入必要的元件庫
 import streamlit.components.v1 as components 
 
 # --- 1. 頁面與全域設定 ---
 st.set_page_config(
-    page_title="全球戰情即時監控面板",
+    page_title="全球戰情即時監控-旺來",
     page_icon="🌍",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -59,9 +60,17 @@ st.markdown("""
     a {
         color: #58a6ff !important;
         text-decoration: none !important;
+        font-size: 16px;
+        font-weight: bold;
     }
     a:hover {
         text-decoration: underline !important;
+    }
+    .original-text {
+        font-size: 12px;
+        color: #8b949e;
+        margin-top: -10px;
+        margin-bottom: 10px;
     }
     @keyframes blinker {
         50% { opacity: 0; }
@@ -69,19 +78,31 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🔴 全球戰情即時監控面板 (伊朗戰區特化版)")
+st.title("🔴 全球戰情即時監控-旺來")
 st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 台灣時間: {current_datetime_str} (數據每分鐘同步更新)", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- 2. 實時抓取真實全球新聞 (加入連結抓取) ---
+# --- 2. 實時抓取國外新聞與即時翻譯 ---
+
+# 輕量級即時翻譯函數 (使用 Google Translate 免費介面)
+def translate_to_tw(text):
+    try:
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q={encoded_text}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req, timeout=3)
+        data = json.loads(response.read().decode('utf-8'))
+        translated_text = "".join([sentence[0] for sentence in data[0]])
+        return translated_text
+    except:
+        return text # 若翻譯失敗則回傳原文
+
 @st.cache_data(ttl=60)
 def fetch_real_news():
-    q_iran = urllib.parse.quote("伊朗 OR 以色列 OR 飛彈 OR 中東")
-    q_taiwan = urllib.parse.quote("台海 OR 解放軍 OR 中共軍演 OR 越界")
-    
+    # 改為抓取純國外權威媒體的英文 RSS 戰報
     urls = [
-        ("中東/伊朗戰報", f"https://news.google.com/rss/search?q={q_iran}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"),
-        ("印太/台海動態", f"https://news.google.com/rss/search?q={q_taiwan}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant")
+        ("半島電視台 (Al Jazeera)", "https://www.aljazeera.com/xml/rss/all.xml"),
+        ("BBC 國際新聞 (BBC World)", "http://feeds.bbci.co.uk/news/world/rss.xml")
     ]
     news_list = []
     
@@ -95,15 +116,15 @@ def fetch_real_news():
             response = urllib.request.urlopen(req, context=ctx, timeout=5)
             root = ET.fromstring(response.read())
             
-            for item in root.findall('.//item')[:5]: 
-                title = item.find('title').text
+            for item in root.findall('.//item')[:4]: # 每個外媒抓取最新 4 條
+                title_en = item.find('title').text
                 pub_date = item.find('pubDate').text
                 
-                # 新增：抓取新聞超連結
                 link_node = item.find('link')
                 news_link = link_node.text if link_node is not None else "#"
                 
-                clean_title = title.split(' - ')[0] if ' - ' in title else title
+                # 呼叫翻譯函數，將英文標題轉為繁體中文
+                title_tw = translate_to_tw(title_en)
 
                 try:
                     dt = parsedate_to_datetime(pub_date)
@@ -116,8 +137,9 @@ def fetch_real_news():
                 news_list.append({
                     "time": time_str, 
                     "src": src_name, 
-                    "msg": clean_title, 
-                    "link": news_link, # 儲存連結
+                    "msg_tw": title_tw, 
+                    "msg_en": title_en,
+                    "link": news_link,
                     "dt": dt_tw
                 })
         except Exception as e:
@@ -128,8 +150,8 @@ def fetch_real_news():
 
 real_events = fetch_real_news()
 
-# 根據新聞內容，動態計算台海緊張程度
-taiwan_tension_score = sum(1 for ev in real_events if "解放軍" in ev['msg'] or "軍演" in ev['msg'] or "越界" in ev['msg'])
+# 根據新聞內容，動態計算台海緊張程度 (檢查中英文關鍵字)
+taiwan_tension_score = sum(1 for ev in real_events if "台灣" in ev['msg_tw'] or "中國" in ev['msg_tw'] or "Taiwan" in ev['msg_en'] or "China" in ev['msg_en'])
 taiwan_is_hot = taiwan_tension_score > 0
 
 # --- 3. 國家衝突熱度資料庫 ---
@@ -142,28 +164,28 @@ country_data = {
 df_countries = pd.DataFrame(country_data)
 
 # --- 4. 核心版面規劃：左邊事件，右邊聚焦地圖 ---
-col_left, col_right = st.columns([1.3, 2.7])
+col_left, col_right = st.columns([1.4, 2.6])
 
 # 【左側版面】：實時戰報與歷史回顧
 with col_left:
-    st.subheader("📰 真實國際戰報") # 移除了「滾動」兩個字
+    st.subheader("📰 真實國際戰報 (外電即時翻譯)") 
     
     with st.container(height=450, border=True):
         if not real_events:
-            st.warning("目前無法連線至情報伺服器。")
+            st.warning("目前無法連線至外電情報伺服器。")
         else:
             for ev in real_events:
-                # 這裡已經轉化為 Markdown 超連結格式 [標題](網址)
-                msg_with_link = f"[{ev['msg']}]({ev['link']})"
+                # 建立可點擊的中文超連結
+                msg_with_link = f"[{ev['msg_tw']}]({ev['link']})"
                 
-                content = f"📅 **{ev['time']}** | 📡 {ev['src']}\n\n**{msg_with_link}**"
-                if "印太" in ev['src']:
-                    if "解放軍" in ev['msg'] or "軍演" in ev['msg']:
-                        st.error(content, icon="🚨")
-                    else:
-                        st.warning(content, icon="🟠")
+                # 排版：時間 + 來源 + 翻譯標籤 -> 中文超連結 -> 英文原文
+                content = f"📅 **{ev['time']}** | 📡 {ev['src']} `[🤖 翻譯]`\n\n{msg_with_link}\n\n<div class='original-text'>原文: {ev['msg_en']}</div>"
+                
+                # 簡單以來源顏色區分
+                if "半島" in ev['src']:
+                    st.warning(content, icon="🟠")
                 else:
-                    st.error(content, icon="💥")
+                    st.info(content, icon="🔵")
     
     st.markdown("---")
     st.subheader("📜 過去 30 天重大戰情回顧")
@@ -248,10 +270,8 @@ v_col1, v_col2 = st.columns(2)
 
 with v_col1:
     st.markdown("##### 📍 全球戰情觀測頻道 1")
-    # 預設使用你提供的 Ganjing World 連結
     url1 = st.text_input("更換頻道 1 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid1")
     if url1:
-        # 調整 iframe 參數以完全契合 Ganjing World
         components.html(
             f'<iframe width="100%" height="280" src="{url1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope;" allowfullscreen></iframe>',
             height=290
@@ -259,7 +279,6 @@ with v_col1:
 
 with v_col2:
     st.markdown("##### 📍 全球戰情觀測頻道 2")
-    # 同樣預設為 Ganjing World 來源，可以自行手動尋找並替換第二個網址
     url2 = st.text_input("更換頻道 2 (Embed 網址)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid2")
     if url2:
         components.html(
