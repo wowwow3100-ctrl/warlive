@@ -26,22 +26,21 @@ tz_tw = timezone(timedelta(hours=8))
 now = datetime.now(tz_tw)
 current_datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
-# 隱藏預設選單，強制暗黑風格，加入自動刷新
+# 隱藏預設選單，強制暗黑風格
 st.markdown("""
-    <meta http-equiv="refresh" content="60">
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stApp {
-        background-color: #0d1117;
+        background-color: #050a15; /* 顏色調深，更具雷達室氛圍 */
         color: #c9d1d9;
     }
     .st-emotion-cache-1v0mbdj {
-        border: 1px solid #30363d;
+        border: 1px solid #1e2d4a;
         border-radius: 8px;
         padding: 10px;
-        background-color: #161b22;
+        background-color: #0b1120;
     }
     .live-status {
         color: #ff4444;
@@ -49,8 +48,8 @@ st.markdown("""
         animation: blinker 1.5s linear infinite;
     }
     .history-card {
-        background-color: #1c2128;
-        border-left: 4px solid #444c56;
+        background-color: #0d1526;
+        border-left: 4px solid #3b82f6;
         padding: 10px;
         margin-bottom: 10px;
         border-radius: 4px;
@@ -67,13 +66,13 @@ st.markdown("""
     }
     .original-text {
         font-size: 12px;
-        color: #8b949e;
+        color: #64748b;
         margin-top: -10px;
         margin-bottom: 10px;
     }
     .hp-bar-container {
         width: 100%;
-        background-color: #30363d;
+        background-color: #1e293b;
         border-radius: 8px;
         height: 20px;
         margin-top: 5px;
@@ -83,8 +82,25 @@ st.markdown("""
         height: 100%;
         transition: width 0.5s ease-in-out;
     }
-    @keyframes blinker {
-        50% { opacity: 0; }
+    /* 重大警報跑馬燈特效 */
+    .critical-alert-banner {
+        background: linear-gradient(90deg, #7f1d1d 0%, #dc2626 50%, #7f1d1d 100%);
+        color: white;
+        padding: 15px;
+        font-size: 20px;
+        font-weight: bold;
+        text-align: center;
+        border-radius: 8px;
+        border: 2px solid #ef4444;
+        box-shadow: 0 0 15px #ef4444;
+        animation: pulse-red 1.5s infinite;
+        margin-bottom: 15px;
+    }
+    @keyframes blinker { 50% { opacity: 0; } }
+    @keyframes pulse-red {
+        0% { box-shadow: 0 0 10px #ef4444; }
+        50% { box-shadow: 0 0 30px #ef4444; }
+        100% { box-shadow: 0 0 10px #ef4444; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -94,12 +110,10 @@ col_title, col_toggle = st.columns([3, 1])
 with col_title:
     st.title("🔴 全球戰情即時監控-旺來")
 with col_toggle:
-    # 新增手機模式/電腦模式切換按鈕
     mode = st.radio("版面檢視模式", ["💻 電腦模式 (詳細)", "📱 手機模式 (精簡)"], horizontal=True)
     is_mobile = "手機" in mode
 
 st.markdown(f"<span class='live-status'>● LIVE </span> 即時連線中 | 台灣時間: {current_datetime_str}", unsafe_allow_html=True)
-st.markdown("---")
 
 # --- 2. 實時抓取國外新聞與即時翻譯 ---
 def translate_to_tw(text):
@@ -159,33 +173,59 @@ def fetch_real_news():
 
 real_events = fetch_real_news()
 
+# --- 🚨 重大戰略關鍵字監聽系統 (引發警報音效與橫幅) ---
+critical_keywords = ["核彈", "核子", "核武", "暗殺", "總統", "出兵", "宣戰", "nuclear", "assassinate", "deploy troops"]
+alert_triggered = False
+alert_msg = ""
+
+for ev in real_events:
+    msg_combined = ev['msg_tw'].lower() + ev['msg_en'].lower()
+    for kw in critical_keywords:
+        if kw in msg_combined:
+            alert_triggered = True
+            alert_msg = f"偵測到戰略關鍵字「{kw}」：{ev['msg_tw']}"
+            break
+    if alert_triggered:
+        break
+
+# 若觸發警報，渲染紅色橫幅並播放星艦警報音效
+if alert_triggered:
+    st.markdown(f"""
+        <div class="critical-alert-banner">
+            🚨 最高級別戰略警報 🚨<br>
+            <span style="font-size: 16px; font-weight: normal;">{alert_msg}</span>
+        </div>
+        <!-- 嵌入隱藏的 HTML5 Audio 標籤，使用 Google 提供的科幻警報音效，不循環播放避免吵雜 -->
+        <audio autoplay>
+            <source src="https://actions.google.com/sounds/v1/alarms/spaceship_alarm.ogg" type="audio/ogg">
+        </audio>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("---")
+
 # --- 動態情報分析 (智能圖示判斷) ---
 taiwan_tension_score = 0
 iran_damage = 0
 dynamic_map_hotspots = []
 
-# 建立智能圖示判斷邏輯
 def get_event_icon(msg, en_msg):
     msg_lower = msg.lower() + en_msg.lower()
     if any(k in msg_lower for k in ["攻擊", "爆炸", "飛彈", "轟炸", "死", "擊落", "戰火", "attack", "strike", "missile", "blast", "bomb"]):
         return "💥"
     if any(k in msg_lower for k in ["軍演", "警告", "制裁", "越界", "緊張", "攔截", "warn", "sanction", "drill", "tension"]):
         return "🚨"
-    return "📍" # 一般新聞用定位點
+    return "📍"
 
 for ev in real_events:
     msg = ev['msg_tw']
     en_msg = ev['msg_en']
     icon_to_use = get_event_icon(msg, en_msg)
     
-    # 判斷台海熱度
     if any(k in msg for k in ["台灣", "中國"]) or any(k in en_msg for k in ["Taiwan", "China"]):
         taiwan_tension_score += 1
-        # 手機版縮小座標散佈範圍，避免擠在一起
         scatter = 0.5 if is_mobile else 1.5 
         dynamic_map_hotspots.append({"lon": 119.5 + random.uniform(-scatter, scatter), "lat": 23.5 + random.uniform(-scatter, scatter), "icon": icon_to_use, "loc": "新聞連動：台海", "msg": msg})
     
-    # 判斷伊朗受損/警戒熱度
     if any(k in msg for k in ["伊朗", "德黑蘭", "Iran", "Tehran"]):
         if icon_to_use == "💥":
             iran_damage += 800
@@ -194,22 +234,28 @@ for ev in real_events:
         scatter = 1.0 if is_mobile else 3.0
         dynamic_map_hotspots.append({"lon": 53.68 + random.uniform(-scatter, scatter), "lat": 32.42 + random.uniform(-scatter, scatter), "icon": icon_to_use, "loc": "新聞連動：伊朗", "msg": msg})
 
-    # 判斷以色列/中東
     elif any(k in msg for k in ["以色列", "加薩", "黎巴嫩", "Israel", "Gaza", "Lebanon"]):
         dynamic_map_hotspots.append({"lon": 34.78 + random.uniform(-0.5, 0.5), "lat": 31.5 + random.uniform(-0.5, 0.5), "icon": icon_to_use, "loc": "新聞連動：中東", "msg": msg})
         
-    # 判斷俄烏
     elif any(k in msg for k in ["烏克蘭", "俄羅斯", "基輔", "Ukraine", "Russia"]):
         scatter = 1.5 if is_mobile else 4.0
         dynamic_map_hotspots.append({"lon": 34.0 + random.uniform(-scatter, scatter), "lat": 49.0 + random.uniform(-scatter, scatter), "icon": icon_to_use, "loc": "新聞連動：俄烏", "msg": msg})
 
 taiwan_is_hot = taiwan_tension_score > 0
 
+# 計算 DEFCON 等級 (阿吉原創創意)
+def calculate_defcon():
+    if alert_triggered: return 2, "⚠️ 戰備狀態 (核武/元首危機)", "#ef4444"
+    if iran_damage > 1000 or taiwan_tension_score > 2: return 3, "🟠 高度緊張 (區域衝突加劇)", "#f97316"
+    return 4, "🔵 警戒狀態 (一般情報監控)", "#3b82f6"
+
+defcon_level, defcon_text, defcon_color = calculate_defcon()
+
 # 計算伊朗 HP
 iran_max_hp = 10000
 iran_current_hp = max(0, iran_max_hp - 1500 - iran_damage - random.randint(10, 150))
 hp_percentage = (iran_current_hp / iran_max_hp) * 100
-hp_color = "#2ea043" if hp_percentage > 60 else ("#d29922" if hp_percentage > 30 else "#f85149")
+hp_color = "#2ea043" if hp_percentage > 60 else ("#d29922" if hp_percentage > 30 else "#ef4444")
 
 # --- 3. 國家衝突熱度資料庫 ---
 country_data = {
@@ -220,25 +266,26 @@ country_data = {
 }
 df_countries = pd.DataFrame(country_data)
 
-# --- 4. 模組化渲染函數 (支援手機與電腦版不同佈局) ---
+# --- 4. 模組化渲染函數 ---
 def render_news_and_stats():
-    st.subheader("📰 真實國際戰報") 
+    col_news_title, col_news_btn = st.columns([2, 1])
+    with col_news_title:
+        st.subheader("📰 真實國際戰報") 
+    with col_news_btn:
+        if st.button("🔄 最新情報", use_container_width=True):
+            fetch_real_news.clear()
     
-    # 手機版高度降低，避免佔用全螢幕
-    news_height = 250 if is_mobile else 400
+    news_height = 450
     with st.container(height=news_height, border=True):
         if not real_events:
             st.warning("目前無法連線至外電情報伺服器。")
         else:
             for ev in real_events:
                 msg_with_link = f"[{ev['msg_tw']}]({ev['link']})"
-                
                 if is_mobile:
-                    # 手機版：極度精簡，只留時間與標題
                     st.markdown(f"**{ev['time'][5:16]}** | {msg_with_link}")
                     st.divider()
                 else:
-                    # 電腦版：詳細資訊與原文
                     content = f"📅 **{ev['time']}** | 📡 {ev['src']} `[🤖 翻譯]`\n\n{msg_with_link}\n\n<div class='original-text'>原文: {ev['msg_en']}</div>"
                     if "半島" in ev['src']:
                         st.warning(content, icon="🟠")
@@ -247,35 +294,54 @@ def render_news_and_stats():
     
     st.markdown("---")
     
-    st.subheader("📈 恐慌與戰略物資指數")
-    i1, i2, i3 = st.columns(3)
-    with i1: st.metric("VIX 指數", f"{22.5 + random.uniform(-0.5, 1.8):.2f}", f"+{random.uniform(0.1, 1.5):.2f}%", delta_color="inverse")
-    with i2: st.metric("布蘭特原油", f"${88.4 + random.uniform(-0.5, 1.2):.2f}", f"+{random.uniform(0.1, 0.8):.2f}%")
-    with i3: st.metric("黃金 (盎司)", f"${2150.5 + random.uniform(-5, 15):.1f}", f"+{random.uniform(2.0, 8.0):.1f}")
-        
-    st.markdown("---")
+    st.subheader("🛡️ 全球戰略狀態指示")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"**DEFCON 等級**<br><span style='color:{defcon_color}; font-size:24px; font-weight:bold;'>DEFCON {defcon_level}</span><br><span style='color:#94a3b8; font-size:14px;'>{defcon_text}</span>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"**伊朗政權穩定值 (HP)**<br><span style='font-size:18px;'>{iran_current_hp} / {iran_max_hp}</span>", unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="hp-bar-container">
+                <div class="hp-bar-fill" style="width: {hp_percentage}%; background-color: {hp_color};"></div>
+            </div>
+        """, unsafe_allow_html=True)
 
-    st.subheader("🛡️ 伊朗政權穩定值 (HP)")
-    st.markdown(f"**當前數值: {iran_current_hp} / {iran_max_hp}** ({hp_percentage:.1f}%)")
-    st.markdown(f"""
-        <div class="hp-bar-container">
-            <div class="hp-bar-fill" style="width: {hp_percentage}%; background-color: {hp_color};"></div>
-        </div>
-        <span style="font-size:12px; color:#8b949e;">*依新聞負面關鍵字(攻擊、制裁等)動態扣減</span>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("📈 戰略物資指數")
+    i1, i2, i3 = st.columns(3)
+    with i1: st.metric("VIX 恐慌指數", f"{22.5 + random.uniform(-0.5, 1.8):.2f}", f"+{random.uniform(0.1, 1.5):.2f}%", delta_color="inverse")
+    with i2: st.metric("布蘭特原油", f"${88.4 + random.uniform(-0.5, 1.2):.2f}", f"+{random.uniform(0.1, 0.8):.2f}%")
+    with i3: st.metric("黃金(盎司)", f"${2150.5 + random.uniform(-5, 15):.1f}", f"+{random.uniform(2.0, 8.0):.1f}")
 
 def render_map():
     fig = go.Figure()
 
+    # 底層：國家區塊上色
     fig.add_trace(go.Choropleth(
         locations=df_countries['ISO'],
         z=df_countries['Intensity'],
-        colorscale=[(0, "#2c0000"), (1, "#ff0000")],
+        colorscale=[(0, "#3f0a0a"), (1, "#ff0000")],
         showscale=False,
         hovertext=df_countries['Country'] + ": " + df_countries['Status'],
         hoverinfo="text",
-        marker_line_color="#30363d",
+        marker_line_color="#1e293b",
         marker_line_width=0.5
+    ))
+
+    # 動態軌跡層：模擬導彈/軍機路線 (讓地圖更生動)
+    is_pulse = (now.second % 10) < 5 
+    
+    # 軌跡1: 伊朗到以色列的威脅線
+    fig.add_trace(go.Scattergeo(
+        lon=[51.38, 34.78], lat=[35.68, 32.08],
+        mode='lines', line=dict(width=2, color='rgba(255, 68, 68, 0.7)', dash='dot' if is_pulse else 'solid'),
+        hoverinfo='skip'
+    ))
+    # 軌跡2: 俄羅斯境內到烏東
+    fig.add_trace(go.Scattergeo(
+        lon=[37.61, 34.0], lat=[55.75, 49.0],
+        mode='lines', line=dict(width=1.5, color='rgba(255, 165, 0, 0.6)', dash='dash'),
+        hoverinfo='skip'
     ))
 
     base_hotspots = [
@@ -286,16 +352,25 @@ def render_map():
     
     all_hotspots = base_hotspots + dynamic_map_hotspots
 
+    # 動態雷達波紋層：為每個熱點畫上擴散圈圈
+    for h in all_hotspots:
+        ring_size = random.randint(20, 60) if is_pulse else random.randint(10, 30)
+        ring_opacity = 0.6 if h["icon"] == "💥" else 0.2
+        fig.add_trace(go.Scattergeo(
+            lon=[h["lon"]], lat=[h["lat"]],
+            mode='markers',
+            marker=dict(size=ring_size, color=f'rgba(255, 0, 0, {ring_opacity/2})', line=dict(width=1, color=f'rgba(255, 0, 0, {ring_opacity})')),
+            hoverinfo='skip'
+        ))
+
+    # 頂層：實體 Icons
     lats = [h["lat"] for h in all_hotspots]
     lons = [h["lon"] for h in all_hotspots]
     icons = [h["icon"] for h in all_hotspots]
     hover_texts = [f"<b>{h['loc']}</b><br>⚠️ {h['msg']}" for h in all_hotspots]
 
-    # 手機版縮小圖示，避免擠在一起
     base_icon_size = 18 if is_mobile else 26
     pulse_icon_size = 24 if is_mobile else 38
-
-    is_pulse = (now.second % 10) < 5 
     sizes = [pulse_icon_size if (h["icon"] in ["💥", "🚨", "🚀"] and is_pulse) else base_icon_size for h in all_hotspots]
 
     fig.add_trace(go.Scattergeo(
@@ -305,23 +380,23 @@ def render_map():
         hoverinfo='text', hovertext=hover_texts
     ))
 
-    # 手機版地圖高度調低
     map_height = 400 if is_mobile else 730
 
     fig.update_geos(
         center=dict(lon=53.68, lat=32.42),
         projection_scale=2.8,
-        showcountries=True, countrycolor="#30363d",
-        showcoastlines=True, coastlinecolor="#30363d", 
-        showland=True, landcolor="#161b22",
-        showocean=True, oceancolor="#0d1117",
-        showlakes=True, lakecolor="#0d1117",
-        bgcolor="#0d1117", projection_type="mercator"
+        showcountries=True, countrycolor="#1e293b",
+        showcoastlines=True, coastlinecolor="#1e293b", 
+        showland=True, landcolor="#0f172a", # 改為更深的軍事藍黑底色
+        showocean=True, oceancolor="#020617",
+        showlakes=True, lakecolor="#020617",
+        showgrid=True, gridcolor='rgba(59, 130, 246, 0.15)', gridwidth=0.5, # 加入雷達經緯線
+        bgcolor="#020617", projection_type="mercator"
     )
 
     fig.update_layout(
         margin={"r":0,"t":0,"l":0,"b":0},
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#020617", plot_bgcolor="#020617",
         height=map_height, showlegend=False
     )
 
@@ -329,12 +404,10 @@ def render_map():
 
 # 依據模式渲染版面
 if is_mobile:
-    # 手機版：強制上下垂直排列
-    render_map() # 手機版通常地圖在上方比較直觀
+    render_map() 
     st.markdown("---")
     render_news_and_stats()
 else:
-    # 電腦版：左右分欄排列
     col_left, col_right = st.columns([1.5, 2.5])
     with col_left:
         render_news_and_stats()
@@ -344,16 +417,14 @@ else:
 st.markdown("---")
 
 # --- 5. 底部 Live 影像區塊 ---
-# 修復 Ganjing 網址，自動轉換 /s/ 為 /embed/
 def clean_ganjing_url(url):
     if "/s/" in url:
-        base = url.split("?")[0] # 移除 ?t=... 等不必要的參數
+        base = url.split("?")[0]
         return base.replace("/s/", "/embed/")
     return url
 
 st.subheader("🎥 戰區 24H 現場監視畫面 (Ganjing World)")
 
-# 手機版畫面也採用單欄排列
 if is_mobile:
     v_col1, v_col2 = st.container(), st.container()
 else:
@@ -361,7 +432,6 @@ else:
 
 with v_col1:
     st.markdown("##### 📍 核心戰情觀測頻道 1")
-    # 預設帶入你提供的影片 (已經自動轉換處理)
     url1 = st.text_input("頻道 1 (支援 Ganjing 連結)：", value="https://www.ganjingworld.com/embed/SH048456380000", key="vid1")
     if url1:
         embed_url = clean_ganjing_url(url1)
@@ -372,7 +442,6 @@ with v_col1:
 
 with v_col2:
     st.markdown("##### 📍 輔助戰情觀測頻道 2")
-    # 帶入你指定的分享連結 /s/oZkE9Q1V1N (系統會自動洗成 embed 格式)
     url2 = st.text_input("頻道 2 (支援 Ganjing 連結)：", value="https://www.ganjingworld.com/s/oZkE9Q1V1N", key="vid2")
     if url2:
         embed_url2 = clean_ganjing_url(url2)
