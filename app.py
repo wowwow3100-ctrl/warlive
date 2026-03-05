@@ -382,15 +382,17 @@ def render_map():
 
     map_height = 400 if is_mobile else 730
 
+    # 修復：Plotly 的 Geo layout 要顯示網格，必須使用 lonaxis 和 lataxis
     fig.update_geos(
         center=dict(lon=53.68, lat=32.42),
         projection_scale=2.8,
         showcountries=True, countrycolor="#1e293b",
         showcoastlines=True, coastlinecolor="#1e293b", 
-        showland=True, landcolor="#0f172a", # 改為更深的軍事藍黑底色
+        showland=True, landcolor="#0f172a",
         showocean=True, oceancolor="#020617",
         showlakes=True, lakecolor="#020617",
-        showgrid=True, gridcolor='rgba(59, 130, 246, 0.15)', gridwidth=0.5, # 加入雷達經緯線
+        lonaxis=dict(showgrid=True, gridcolor='rgba(59, 130, 246, 0.15)', gridwidth=0.5),
+        lataxis=dict(showgrid=True, gridcolor='rgba(59, 130, 246, 0.15)', gridwidth=0.5),
         bgcolor="#020617", projection_type="mercator"
     )
 
