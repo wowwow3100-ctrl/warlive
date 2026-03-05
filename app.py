@@ -320,7 +320,8 @@ def render_map():
     fig.add_trace(go.Choropleth(
         locations=df_countries['ISO'],
         z=df_countries['Intensity'],
-        colorscale=[(0, "#3f0a0a"), (1, "#ff0000")],
+        # 修改：將最高警戒顏色調暗為深酒紅 (#7a0505)，避免與爆炸圖示的亮紅色衝突
+        colorscale=[(0, "#1e0b0b"), (1, "#7a0505")],
         showscale=False,
         hovertext=df_countries['Country'] + ": " + df_countries['Status'],
         hoverinfo="text",
@@ -356,10 +357,11 @@ def render_map():
     for h in all_hotspots:
         ring_size = random.randint(20, 60) if is_pulse else random.randint(10, 30)
         ring_opacity = 0.6 if h["icon"] == "💥" else 0.2
+        # 修改：將雷達波紋改為橘黃色 (255, 165, 0)，提升與深紅底圖的對比度
         fig.add_trace(go.Scattergeo(
             lon=[h["lon"]], lat=[h["lat"]],
             mode='markers',
-            marker=dict(size=ring_size, color=f'rgba(255, 0, 0, {ring_opacity/2})', line=dict(width=1, color=f'rgba(255, 0, 0, {ring_opacity})')),
+            marker=dict(size=ring_size, color=f'rgba(255, 165, 0, {ring_opacity/2})', line=dict(width=1, color=f'rgba(255, 165, 0, {ring_opacity})')),
             hoverinfo='skip'
         ))
 
